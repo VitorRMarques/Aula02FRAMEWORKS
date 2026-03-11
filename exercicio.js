@@ -1,46 +1,46 @@
-// dashboard.js â€” MÃ³dulo de MÃ©tricas de Vendas
-// Gerado automaticamente â€” aguardando review
- 
+// dashboard.js – Módulo de Métricas de Vendas
+// Refatorado com boas práticas de JavaScript moderno
+
 const BASE_URL = 'https://api.empresa.com';
 const TAXA_IMPOSTO = 0.15;
 const LIMITE_ALERTA = 100;
- 
-const metricas = {};
-const usuariosCache = null;
- 
-// Busca dados do dashboard
-function carregarDashboard(periodo, callback) {
-  let url = BASE_URL + '/metricas?periodo=' + periodo;
-  fetch(url)
-    .then(function(resposta) {
-      return resposta.json();
-    })
-    .then(function(dados) {
-      let vendas = dados.vendas;
-      let temp = [];
-      for (let i = 0; i < vendas.length; i++) {
-        if (vendas[i].status == 'aprovada') {
-          temp.push(vendas[i]);
-        }
-      }
-      let resultado = {};
-      resultado.total = 0;
-      resultado.quantidade = temp.length;
-      resultado.itens = temp;
-      for (let i = 0; i < temp.length; i++) {
-        resultado.total = resultado.total + temp[i].valor;
-      }
-      resultado.totalComImposto = resultado.total + (resultado.total * TAXA_IMPOSTO);
-      callback(null, resultado);
-    })
-    .catch(function(erro) {
-      callback(erro, null);
-    });
+
+/**
+ * Busca dados do dashboard
+ * @param {string} periodo - Período para filtrar métricas
+ * @returns {Promise<Object>} Resultado com métricas de vendas
+ */
+async function carregarDashboard(periodo) {
+  try {
+    const url = `${BASE_URL}/metricas?periodo=${periodo}`;
+    const resposta = await fetch(url);
+    
+    if (!resposta.ok) {
+      throw new Error(`Erro HTTP: ${resposta.status}`);
+    }
+    
+    const dados = await resposta.json();
+    
+    const vendasAprovadas = dados.vendas.filter(v => v.status === 'aprovada');
+    const total = vendasAprovadas.reduce((sum, v) => sum + v.valor, 0);
+    
+    return {
+      total,
+      quantidade: vendasAprovadas.length,
+      itens: vendasAprovadas,
+      totalComImposto: total + (total * TAXA_IMPOSTO)
+    };
+  } catch (erro) {
+    console.error('Erro ao carregar dashboard:', erro);
+    throw erro;
+  }
 }
 
-const carregarDashboard = 
- 
-// Formata relatÃ³rio para exibiÃ§Ã£o
+/**
+ * Formata relatório para exibição em HTML
+ * @param {Object} dados - Dados de vendas
+ * @returns {string} HTML formatado
+ */
 function formatarRelatorio(dados) {
   return `
     <h2>Relatório de Vendas</h2>
@@ -50,56 +50,62 @@ function formatarRelatorio(dados) {
   `;
 }
 
-const formatarRelatorio = (dados) => {
-    let relatorio = ''
-    relatorio += '<h2>Relatorio de Vendas<h2>'
-    relatorio += `<p>Total: R$ ${dados.total.toFixed(2)}</p>`
-    relatorio += `<p>Com impostos: R$ ${dados.totalComImposto.toFixed(2)}</p>`
-    relatorio += `<p>Quantidade: ${dados.quantidade}</p>`
-    return relatorio
-}
- 
-// Classifica vendedores por performance
+/**
+ * Classifica vendedores por performance
+ * @param {Object} vendedores - Objeto com dados de vendedores
+ * @returns {Array} Lista de vendedores ativos ordenados por total
+ */
 function classificarVendedores(vendedores) {
-  const chaves = Object.keys(vendedores);
-  const lista = [];
-  for (let i = 0; i < chaves.length; i++) {
-    const item = new Object();
-    item.nome = chaves[i];
-    item.total = vendedores[chaves[i]].total;
-    item.ativo = vendedores[chaves[i]].ativo;
-    lista.push(item);
-    vendedores.map(chaves.length )
-  }
-  const ativos = [];
-  for (let i = 0; i < lista.length; i++) {
-    if (lista[i].ativo == true) {
-      ativos.push(lista[i]);
-    } else {
-      console.log('Vendedor inativo: ' + lista[i].nome);
+  const lista = Object.entries(vendedores).map(([nome, dados]) => ({
+    nome,
+    total: dados.total,
+    ativo: dados.ativo
+  }));
+  
+  const ativos = lista.filter(vendedor => {
+    if (!vendedor.ativo) {
+      console.log(`Vendedor inativo: ${vendedor.nome}`);
+      return false;
     }
-  }
-  ativos.sort(function(a, b) {
-    if (a.total > b.total) { return -1; }
-    if (a.total < b.total) { return 1; }
-    return 0;
+    return true;
   });
-  return ativos;
+  
+  // Ordena por total em ordem decrescente
+  return ativos.sort((a, b) => b.total - a.total);
 }
- 
-// Verifica alertas de meta
+
+/**
+ * Verifica alertas de meta de vendas
+ * @param {Object} metricas - Métricas de vendas
+ * @param {number} meta - Meta de vendas
+ * @returns {Array} Lista de alertas
+ */
 function verificarAlertas(metricas, meta) {
+  // Remove itens com valor zero
   metricas.itens = metricas.itens.filter(item => item.valor > 0);
   
   const percentual = (metricas.total / meta) * 100;
   const alertas = [];
   
-  const mensagen = percentual < LIMITE_ALERTA
-    ? { tipo: 'perigo', msg: `Meta em ${percentual.toFixed(1)}% – abaixo do limite de ${LIMITE_ALERTA}%` }
-    : { tipo: 'ok', msg: `Meta atingida: ${percentual.toFixed(1)}%` };
+  // Alerta baseado no percentual atingido
+  const alerta = percentual < LIMITE_ALERTA
+    ? {
+        tipo: 'perigo',
+        msg: `Meta em ${percentual.toFixed(1)}% – abaixo do limite de ${LIMITE_ALERTA}%`
+      }
+    : {
+        tipo: 'ok',
+        msg: `Meta atingida: ${percentual.toFixed(1)}%`
+      };
   
-  alertas.push(mensagen);
-  alertas.push({ tipo: 'info', msg: `Atualizado em: ${new Date().toLocaleString('pt-BR')}` });
+  alertas.push(alerta);
+  
+  // Adiciona timestamp formatado
+  const dataFormatada = new Date().toLocaleString('pt-BR');
+  alertas.push({
+    tipo: 'info',
+    msg: `Atualizado em: ${dataFormatada}`
+  });
   
   return alertas;
 }
